@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pengisian Data Diri - Kost Ibu Muini</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  body{font-family:Arial, sans-serif;background:#fff;color:#000;padding:18px;display:flex;flex-direction:column;align-items:center;}
+  .card{width:100%;max-width:520px;background:#fff;border:1px solid #ddd;padding:18px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+  h1{font-size:20px;margin:0 0 6px 0;text-align:center;font-weight:700}
+  p.sub{font-size:13px;color:#666;text-align:center;margin:0 0 14px 0}
+  label{display:block;margin-top:10px;font-weight:600}
+  input[type=text],input[type=date],input[type=email],textarea{width:100%;padding:10px;border:1px solid #333;border-radius:8px;font-size:14px;box-sizing:border-box}
+  input[type=file]{margin-top:8px}
+  .row{display:flex;gap:10px}
+  .row .col{flex:1}
+  .btn{display:inline-block;padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+  .btn-primary{background:#000;color:#fff}
+  .btn-muted{background:#f3f3f3;color:#111;border:1px solid #ddd}
+  #preview{margin-top:16px;border:2px solid #000;padding:14px;border-radius:8px}
+  #preview h2{text-align:center;margin:0 0 10px 0;font-size:16px}
+  #preview img{display:block;margin:10px auto;border:1px solid #000;border-radius:6px;max-width:280px;width:100%}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:center}
+  .info{font-size:13px;color:#444;margin-top:8px;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Pengisian Data Diri - Kost Ibu Muini</h1>
+  <p class="sub">Isi data di bawah ini lalu cetak PDF.</p>
+
+  <label>Nama</label>
+  <input id="nama" type="text" placeholder="Nama lengkap">
+
+  <label>Alamat</label>
+  <textarea id="alamat" rows="2" placeholder="Alamat lengkap"></textarea>
+
+  <div class="row">
+    <div class="col">
+      <label>Tempat Lahir</label>
+      <input id="tempatLahir" type="text" placeholder="Contoh: Bandung">
+    </div>
+    <div class="col">
+      <label>Tanggal Lahir</label>
+      <input id="tanggalLahir" type="date">
+    </div>
+  </div>
+
+  <label>Nomor HP Penghuni</label>
+  <input id="noHp" type="text" placeholder="08xx-xxxx-xxxx">
+
+  <label>Nomor Keluarga yang bisa dihubungi</label>
+  <input id="nomorKeluarga" type="text" placeholder="08xx-xxxx-xxxx">
+
+  <label>Upload Foto KTP (foto jelas)</label>
+  <input id="fotoKtp" type="file" accept="image/*">
+
+  <div style="text-align:center;margin-top:12px">
+    <button id="btnCetak" class="btn btn-primary" type="button">Cetak PDF</button>
+  </div>
+
+  <div id="preview" aria-hidden="false">
+    <h2>Data Diri Penghuni Kost Ibu Muini</h2>
+    <p><strong>Nama:</strong> <span id="prevNama">-</span></p>
+    <p><strong>Alamat:</strong> <span id="prevAlamat">-</span></p>
+    <p><strong>Tempat, Tanggal Lahir:</strong> <span id="prevTTL">-</span></p>
+    <p><strong>Nomor HP Penghuni:</strong> <span id="prevHp">-</span></p>
+    <p><strong>Nomor Keluarga:</strong> <span id="prevNomor">-</span></p>
+    <p><strong>Tanggal Cetak:</strong> <span id="printDate">-</span></p>
+    <p id="noKtp">Belum upload foto KTP</p>
+    <img id="prevKtp" class="hidden" alt="Foto KTP">
+  </div>
+
+  <div class="actions" style="margin-top:12px;display:none" id="postActions">
+    <button id="btnDownload" class="btn btn-primary btn-muted">Download PDF</button>
+    <button id="btnEmail" class="btn btn-muted">Kirim ke Email</button>
+  </div>
+
+  <p class="info">Setelah menekan <strong>Download PDF</strong>, buka aplikasi email dan lampirkan file PDF yang terunduh lalu kirim ke <strong>yuriconandarahmatullah@gmail.com</strong>.</p>
+</div>
+
+<script>
+/* --- Elemen --- */
+const nama = document.getElementById('nama');
+const alamat = document.getElementById('alamat');
+const tempat = document.getElementById('tempatLahir');
+const tanggal = document.getElementById('tanggalLahir');
+const noHp = document.getElementById('noHp');
+const nomorKeluarga = document.getElementById('nomorKeluarga');
+const foto = document.getElementById('fotoKtp');
+
+const prevNama = document.getElementById('prevNama');
+const prevAlamat = document.getElementById('prevAlamat');
+const prevTTL = document.getElementById('prevTTL');
+const prevHp = document.getElementById('prevHp');
+const prevNomor = document.getElementById('prevNomor');
+const prevKtp = document.getElementById('prevKtp');
+const noKtp = document.getElementById('noKtp');
+const printDate = document.getElementById('printDate');
+
+const btnCetak = document.getElementById('btnCetak');
+const btnDownload = document.getElementById('btnDownload');
+const btnEmail = document.getElementById('btnEmail');
+const postActions = document.getElementById('postActions');
+
+let lastPdfBlob = null;
+let lastPdfName = null;
+
+/* --- Update preview --- */
+function updatePreview(){
+  prevNama.textContent = nama.value || '-';
+  prevAlamat.textContent = alamat.value || '-';
+  prevTTL.textContent = `${tempat.value || '-'}, ${tanggal.value || '-'}`;
+  prevHp.textContent = noHp.value || '-';
+  prevNomor.textContent = nomorKeluarga.value || '-';
+  printDate.textContent = new Date().toLocaleDateString();
+}
+[nama, alamat, tempat, tanggal, noHp, nomorKeluarga].forEach(i => i.addEventListener('input', updatePreview));
+
+/* --- Handle KTP preview --- */
+foto.addEventListener('change', (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    prevKtp.src = ev.target.result;
+    prevKtp.classList.remove('hidden');
+    noKtp.style.display = 'none';
+  };
+  reader.readAsDataURL(f);
+});
+
+/* --- Generate PDF in-browser --- */
+async function generatePDF_andStore(){
+  updatePreview();
+  const preview = document.getElementById('preview');
+
+  // html2canvas (high quality)
+  const canvas = await html2canvas(preview, { scale: 3, useCORS: true, allowTaint: true });
+  const imgData = canvas.toDataURL('image/png');
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
+
+  // fit image to width
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+  // filename from name field
+  const safeName = (nama.value || 'data-diri').replace(/[\\\/:*?"<>|]/g, '').trim();
+  const filename = `${safeName} - Kost Ibu Muini.pdf`;
+
+  // create blob and store
+  const pdfBlob = pdf.output('blob');
+  lastPdfBlob = pdfBlob;
+  lastPdfName = filename;
+
+  // automatically trigger download
+  triggerDownload(pdfBlob, filename);
+
+  // show post actions (download already done but keep buttons visible)
+  postActions.style.display = 'flex';
+  alert('PDF berhasil dibuat dan diunduh. Untuk mengirim ke email, gunakan tombol "Kirim ke Email" atau lampirkan file PDF yang terunduh pada email Anda.');
+}
+
+/* --- helper: trigger download --- */
+function triggerDownload(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000*30);
+}
+
+/* --- btn handlers --- */
+btnCetak.addEventListener('click', () => {
+  generatePDF_andStore();
+});
+
+btnDownload.addEventListener('click', () => {
+  if(!lastPdfBlob || !lastPdfName){ alert('Silakan buat PDF terlebih dahulu (klik Cetak PDF).'); return; }
+  triggerDownload(lastPdfBlob, lastPdfName);
+});
+
+/* --- Kirim ke email (membuka aplikasi email dengan isi terisi) --- */
+/* Tidak bisa melampirkan file otomatis; instruksi: attach file yang sudah di-download */
+btnEmail.addEventListener('click', () => {
+  if(!lastPdfName){
+    alert('Silakan buat PDF terlebih dahulu (klik Cetak PDF) sebelum mengirim ke email.');
+    return;
+  }
+  const to = 'yuriconandarahmatullah@gmail.com';
+  const subject = encodeURIComponent('Data Diri - ' + (nama.value || 'Penghuni Baru'));
+  const bodyLines = [
+    'Halo,',
+    '',
+    'Saya telah melampirkan file PDF Data Diri Penghuni. Mohon diterima.',
+    '',
+    'Nama: ' + (nama.value || '-'),
+    'Alamat: ' + (alamat.value || '-'),
+    'Tempat, Tanggal Lahir: ' + (tempat.value || '-') + ', ' + (tanggal.value || '-'),
+    'Nomor HP Penghuni: ' + (noHp.value || '-'),
+    'Nomor Keluarga: ' + (nomorKeluarga.value || '-'),
+    '',
+    'File PDF yang perlu dilampirkan: ' + lastPdfName,
+    '',
+    'Terima kasih.'
+  ];
+  const body = encodeURIComponent(bodyLines.join('\n'));
+
+  // mailto - akan membuka aplikasi email default. Pengguna harus melampirkan file secara manual.
+  const mailto = `mailto:${to}?subject=${subject}&body=${body}`;
+  window.location.href = mailto;
+});
+
+/* --- End --- */
+</script>
+</body>
+</html>
